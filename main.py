@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import json
 import os
+import boto3
+import json
 
 app = FastAPI(title="AgentGuard API", version="1.0")
 
