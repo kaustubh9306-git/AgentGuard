@@ -1,114 +1,52 @@
-import json
-import os
-import re
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-from products import products_found
+# agent.py
 
-load_dotenv()
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-
-def process_user_shopping_request(user_prompt: str):
-  extraction_prompt = f"""
-    Analyze the following user shopping request and extract constraints into JSON format.
-    Request: "{user_prompt}"
+def process_user_shopping_request(prompt: str):
+    """Parses prompt intent and returns candidate products for evaluation."""
+    prompt_lower = prompt.lower()
     
-    Extract these fields:
-    - category (string, e.g., "phone", "laptop", "monitor", "headphone", "smartwatch")
-    - max_price (integer, numeric value only)
-    - min_storage_gb (integer or null)
-    - max_delivery_days (integer or null)
-    - preferred_brand (string or null)
+    # Default intent
+    category = "Electronics"
+    max_price = 75000
     
-    Return ONLY valid JSON.
-    """
-
-  models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
-  response_text = None
-
-  for model_name in models_to_try:
-    try:
-      response = client.models.generate_content(
-          model=model_name,
-          contents=extraction_prompt,
-          config=types.GenerateContentConfig(response_mime_type="application/json"),
-      )
-      if response and response.text:
-        response_text = response.text
-        break
-    except Exception:
-      continue
-
-  intent = {}
-  if response_text:
-    try:
-      intent = json.loads(response_text)
-    except json.JSONDecodeError:
-      intent = {}
-
-  # Smart Fallback Parser
-  prompt_lower = user_prompt.lower()
-  detected_category = intent.get("category", "").lower()
-
-  if (
-      not detected_category
-      or detected_category not in "phone laptop monitor headphone smartwatch"
-  ):
-    if "phone" in prompt_lower or "mobile" in prompt_lower:
-      detected_category = "phone"
+    # Simple keyword detection to adjust intent based on prompt
+    if "tablet" in prompt_lower:
+        category = "Tablet"
+        max_price = 40000
+        products = [
+            {"id": 1, "name": "Samsung Galaxy Tab S9", "price": 38999, "delivery_days": 2},
+            {"id": 2, "name": "Apple iPad Air (256GB)", "price": 54999, "delivery_days": 3},
+            {"id": 3, "name": "Lenovo Tab P12", "price": 32999, "delivery_days": 4}
+        ]
     elif "laptop" in prompt_lower:
-      detected_category = "laptop"
-    elif "monitor" in prompt_lower or "display" in prompt_lower:
-      detected_category = "monitor"
-    elif "headphone" in prompt_lower or "earbud" in prompt_lower:
-      detected_category = "headphone"
-    elif "watch" in prompt_lower:
-      detected_category = "smartwatch"
+        category = "Laptop"
+        max_price = 70000
+        products = [
+            {"id": 4, "name": "Lenovo IdeaPad Slim 5 (16GB)", "price": 64999, "delivery_days": 2},
+            {"id": 5, "name": "ASUS Vivobook Pro 15", "price": 72000, "delivery_days": 5},
+            {"id": 6, "name": "MacBook Air M1", "price": 74999, "delivery_days": 1}
+        ]
+    elif "earbuds" in prompt_lower or "earphone" in prompt_lower:
+        category = "Audio"
+        max_price = 5000
+        products = [
+            {"id": 7, "name": "OnePlus Buds Z2", "price": 3999, "delivery_days": 1},
+            {"id": 8, "name": "Realme Buds Air 5", "price": 3499, "delivery_days": 2},
+            {"id": 9, "name": "Sony WF-C500", "price": 5999, "delivery_days": 3}
+        ]
     else:
-      detected_category = "phone"
+        # Default fallback products
+        products = [
+            {"id": 10, "name": "Generic Flagship Smartphone", "price": 69999, "delivery_days": 2},
+            {"id": 11, "name": "Ultra Smartphone Pro", "price": 79999, "delivery_days": 3},
+            {"id": 12, "name": "Budget Smartphone Lite", "price": 24999, "delivery_days": 1}
+        ]
 
-  intent["category"] = detected_category
-
-  if not intent.get("max_price"):
-    numbers = re.findall(r"\d+", user_prompt)
-    valid_prices = [int(n) for n in numbers if int(n) > 1000]
-    intent["max_price"] = (
-        valid_prices[0]
-        if valid_prices
-        else (int(numbers[0]) if numbers else 50000)
-    )
-
-  max_budget = intent.get("max_price", 999999)
-
-  # Filter matching products from the catalog flexibly
-  matched_products = [
-      p
-      for p in products_found
-      if detected_category in p["category"].lower()
-      and p["price"] <= max_budget
-  ]
-
-  # If exact category match yields nothing, search globally by budget
-  if not matched_products:
-    matched_products = [p for p in products_found if p["price"] <= max_budget]
-
-  # Sort by price ascending to give best options first
-  matched_products.sort(key=lambda x: (x["delivery_days"], x["price"]))
-
-  # Grab top 3 options to fulfill the multi-option requirement!
-  top_proposals = (
-      matched_products[:3] if matched_products else products_found[:3]
-  )
-
-  return {
-      "user_intent": {
-          "hard_constraints": {
-              "max_price": max_budget,
-              "min_storage_gb": intent.get("min_storage_gb"),
-              "max_delivery_days": intent.get("max_delivery_days"),
-          }
-      },
-      "proposed_products": top_proposals,
-  }
+    return {
+        "user_intent": {
+            "category": category,
+            "hard_constraints": {
+                "max_price": max_price
+            }
+        },
+        "proposed_products": products
+    }

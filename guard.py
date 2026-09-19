@@ -66,3 +66,30 @@ def validate_purchase(user_intent: dict, product: dict) -> dict:
     reason = "All active constraints satisfied successfully."
 
   return {"decision": decision, "reason": reason, "checks": checks}
+
+def verify_constraints(
+    price: float,
+    delivery_days: int,
+    max_budget: float,
+    max_delivery_days: int = None,
+):
+  """Deterministically verifies if a product proposal violates user constraints.
+
+  Returns a string describing the violation if any constraint fails, or None if
+  all checks pass.
+  """
+  # Check budget constraint (None-safe)
+  if max_budget is not None and price > max_budget:
+    return (
+        f"Price (${price:,.2f}) exceeds user maximum budget"
+        f" (${max_budget:,.2f})."
+    )
+
+  # Check delivery days constraint (None-safe)
+  if max_delivery_days is not None and delivery_days > max_delivery_days:
+    return (
+        f"Delivery time ({delivery_days} days) exceeds maximum allowed"
+        f" ({max_delivery_days} days)."
+    )
+
+  return None
