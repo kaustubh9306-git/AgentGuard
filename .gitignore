@@ -2,3 +2,5 @@
 __pycache__/
 .env
 audit_logs.json
+node_modules/
+.blackbox-cli-v2/
