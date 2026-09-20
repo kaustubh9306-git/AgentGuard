@@ -4,3 +4,5 @@ __pycache__/
 audit_logs.json
 node_modules/
 .blackbox-cli-v2/
+.vscode/
+*.pem
